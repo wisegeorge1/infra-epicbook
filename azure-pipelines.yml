@@ -4,24 +4,39 @@ trigger:
       - main
   paths:
     include:
-      - terraform/*
+      - terraform/**
 
 pool:
   vmImage: 'ubuntu-latest'
 
 variables:
   - group: epicbook-secrets
+
   - name: azureServiceConnection
     value: 'azure-epicbook-connection'
+
   - name: tfDirectory
     value: '$(System.DefaultWorkingDirectory)/terraform'
 
+  - name: tfStorageAccount
+    value: 'YOUR_ACTUAL_STORAGE_ACCOUNT_NAME'
+
+  - name: tfContainer
+    value: 'tfstate'
+
+  - name: tfStateKey
+    value: 'epicbook.terraform.tfstate'
+
 stages:
+
   - stage: Validate
     displayName: 'Validate Terraform'
+
     jobs:
       - job: Validate
+
         steps:
+
           - task: HashiCorpTerraform@1
             displayName: 'Terraform Init'
             inputs:
@@ -30,9 +45,10 @@ stages:
               workingDirectory: '$(tfDirectory)'
               backendServiceArm: '$(azureServiceConnection)'
               backendAzureRmResourceGroupName: 'rg-epicbook-tfstate'
-              backendAzureRmStorageAccountName: '<STORAGE_ACCOUNT_NAME>'
-              backendAzureRmContainerName: 'tfstate'
-              backendAzureRmKey: 'epicbook.terraform.tfstate'
+              backendAzureRmStorageAccountName: '$(tfStorageAccount)'
+              backendAzureRmContainerName: '$(tfContainer)'
+              backendAzureRmKey: '$(tfStateKey)'
+
           - task: HashiCorpTerraform@1
             displayName: 'Terraform Validate'
             inputs:
@@ -40,12 +56,16 @@ stages:
               command: 'validate'
               workingDirectory: '$(tfDirectory)'
 
+
   - stage: Plan
     displayName: 'Plan Infrastructure'
     dependsOn: Validate
+
     jobs:
       - job: Plan
+
         steps:
+
           - task: HashiCorpTerraform@1
             displayName: 'Terraform Init'
             inputs:
@@ -54,9 +74,10 @@ stages:
               workingDirectory: '$(tfDirectory)'
               backendServiceArm: '$(azureServiceConnection)'
               backendAzureRmResourceGroupName: 'rg-epicbook-tfstate'
-              backendAzureRmStorageAccountName: '<STORAGE_ACCOUNT_NAME>'
-              backendAzureRmContainerName: 'tfstate'
-              backendAzureRmKey: 'epicbook.terraform.tfstate'
+              backendAzureRmStorageAccountName: '$(tfStorageAccount)'
+              backendAzureRmContainerName: '$(tfContainer)'
+              backendAzureRmKey: '$(tfStateKey)'
+
           - task: HashiCorpTerraform@1
             displayName: 'Terraform Plan'
             inputs:
@@ -64,27 +85,40 @@ stages:
               command: 'plan'
               workingDirectory: '$(tfDirectory)'
               environmentServiceNameAzureRM: '$(azureServiceConnection)'
-              commandOptions: '-out=$(System.DefaultWorkingDirectory)/tfplan -var="ssh_public_key=$(SSH_PUBLIC_KEY)" -var="admin_ip_address=$(ADMIN_IP)" -var="mysql_admin_password=$(MYSQL_ADMIN_PASSWORD)"'
+              commandOptions: >
+                -out=$(Pipeline.Workspace)/tfplan
+                -var="ssh_public_key=$(SSH_PUBLIC_KEY)"
+                -var="admin_ip_address=$(ADMIN_IP)"
+                -var="mysql_admin_password=$(MYSQL_ADMIN_PASSWORD)"
+
           - task: PublishPipelineArtifact@1
             displayName: 'Publish TF Plan'
             inputs:
-              targetPath: '$(System.DefaultWorkingDirectory)/tfplan'
+              targetPath: '$(Pipeline.Workspace)/tfplan'
               artifact: 'tfplan'
+
 
   - stage: Apply
     displayName: 'Apply Infrastructure'
     dependsOn: Plan
+
     jobs:
+
       - deployment: Apply
         environment: 'EpicBook-Production'
+
         strategy:
           runOnce:
             deploy:
+
               steps:
+
                 - task: DownloadPipelineArtifact@2
+                  displayName: 'Download Terraform Plan'
                   inputs:
                     artifact: 'tfplan'
-                    path: '$(System.DefaultWorkingDirectory)'
+                    path: '$(Pipeline.Workspace)'
+
                 - task: HashiCorpTerraform@1
                   displayName: 'Terraform Init'
                   inputs:
@@ -93,9 +127,10 @@ stages:
                     workingDirectory: '$(tfDirectory)'
                     backendServiceArm: '$(azureServiceConnection)'
                     backendAzureRmResourceGroupName: 'rg-epicbook-tfstate'
-                    backendAzureRmStorageAccountName: '<STORAGE_ACCOUNT_NAME>'
-                    backendAzureRmContainerName: 'tfstate'
-                    backendAzureRmKey: 'epicbook.terraform.tfstate'
+                    backendAzureRmStorageAccountName: '$(tfStorageAccount)'
+                    backendAzureRmContainerName: '$(tfContainer)'
+                    backendAzureRmKey: '$(tfStateKey)'
+
                 - task: HashiCorpTerraform@1
                   displayName: 'Terraform Apply'
                   inputs:
@@ -103,7 +138,8 @@ stages:
                     command: 'apply'
                     workingDirectory: '$(tfDirectory)'
                     environmentServiceNameAzureRM: '$(azureServiceConnection)'
-                    commandOptions: '$(System.DefaultWorkingDirectory)/tfplan'
+                    commandOptions: '$(Pipeline.Workspace)/tfplan'
+
                 - task: AzureCLI@2
                   displayName: 'Output Infrastructure Details'
                   inputs:
@@ -111,8 +147,10 @@ stages:
                     scriptType: 'bash'
                     scriptLocation: 'inlineScript'
                     inlineScript: |
-                      cd $(tfDirectory)
+                      cd "$(tfDirectory)"
+
                       echo "=========================================="
                       echo "  TERRAFORM OUTPUTS FOR HANDOFF"
                       echo "=========================================="
+
                       terraform output -no-color
