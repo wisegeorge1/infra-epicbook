@@ -1,12 +1,12 @@
 variable "location" {
   type        = string
-  default     = "eastus2"
+  default     = "eastus"
   description = "Azure region for resource deployment."
 }
 
 variable "resource_group_name" {
   type        = string
-  default     = "rg-epicbook"
+  default     = "rg-epicbook-prod"
   description = "Resource group name."
 }
 
@@ -28,7 +28,7 @@ variable "admin_ip_address" {
 
 variable "mysql_admin_username" {
   type        = string
-  default     = "epicbookadmin"
+  default     = "epicadmin"
   description = "Administrator login for MySQL Flexible Server."
 }
 
