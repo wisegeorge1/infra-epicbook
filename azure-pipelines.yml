@@ -89,7 +89,7 @@ stages:
                 -out=$(Pipeline.Workspace)/tfplan
                 -var="ssh_public_key=$(SSH_PUBLIC_KEY)"
                 -var="admin_ip_address=$(ADMIN_IP)"
-                -var="mysql_admin_password=$(MYSQL_ADMIN_PASSWORD)"
+                -var="mysqlAdminPasword=$(MYSQL_ADMIN_PASSWORD)"
 
           - task: PublishPipelineArtifact@1
             displayName: 'Publish TF Plan'
